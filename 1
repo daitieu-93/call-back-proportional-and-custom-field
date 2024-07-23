@@ -1,0 +1,100 @@
+
+
+// Nếu file này được gọi trực tiếp, thì dừng lại.
+if ( ! defined( 'WPINC' ) ) {
+	die();
+}
+
+class Custom_Proportional_Format_Currency_Callback {
+
+	public static $instance = null;
+
+	public function __construct() {
+		add_filter( 'jet-engine/listings/allowed-callbacks', array( $this, 'add_custom_callback' ), 10, 2 );
+		add_filter( 'jet-engine/listing/dynamic-field/callback-args', array( $this, 'add_field_to_args' ), 10, 3 );
+		add_filter( 'jet-engine/listings/allowed-callbacks-args', array( $this, 'callback_controls' ) );
+	}
+
+	public function add_custom_callback( $callbacks ) {
+		$callbacks['custom_proportional_and_format_currency'] = 'Proportional and Format Currency';
+		return $callbacks;
+	}
+
+	public function callback_controls( $args = array() ) {
+		$args['divisor'] = array(
+			'label'       => esc_html__( 'Divisor', 'jet-engine' ),
+			'type'        => 'number',
+			'default'     => 1,
+			'label_block' => true,
+			'dynamic_tags' => array(
+				'enabled' => true,
+			),
+			'condition'   => array(
+				'dynamic_field_filter' => 'yes',
+				'filter_callback'      => array( 'custom_proportional_and_format_currency' ),
+			),
+		);
+
+		$args['multiplier'] = array(
+			'label'       => esc_html__( 'Multiplier', 'jet-engine' ),
+			'type'        => 'number',
+			'default'     => 1,
+			'label_block' => true,
+			'dynamic_tags' => array(
+				'enabled' => true,
+			),
+			'condition'   => array(
+				'dynamic_field_filter' => 'yes',
+				'filter_callback'      => array( 'custom_proportional_and_format_currency' ),
+			),
+		);
+
+		return $args;
+	}
+
+	public function calculated_field( $field_value = null, $divisor = 1, $multiplier = 1 ) {
+		if ( ! $divisor || ! $multiplier ) {
+			return $field_value;
+		}
+		$proportional_value = ( $field_value / $divisor ) * $multiplier;
+		return $this->format_currency( $proportional_value );
+	}
+
+	public function format_currency( $number ) {
+		if ( $number >= 1000000000 ) {
+			return number_format( $number / 1000000000, 0, ',', ',' ) . ' tỷ';
+		} elseif ( $number >= 1000000 ) {
+			return number_format( $number / 1000000, 0, ',', ',' ) . ' triệu';
+		} elseif ( $number >= 1000 ) {
+			return number_format( $number / 1000, 0, ',', ',' ) . ' ngàn';
+		} else {
+			return number_format( $number, 0, ',', ',' );
+		}
+	}
+
+	public function add_field_to_args( $args, $callback, $settings = array() ) {
+		if ( 'custom_proportional_and_format_currency' === $callback ) {
+			$args[] = isset( $settings['divisor'] ) ? $settings['divisor'] : 1;
+			$args[] = isset( $settings['multiplier'] ) ? $settings['multiplier'] : 1;
+		}
+		return $args;
+	}
+
+	public static function instance() {
+		if ( is_null( self::$instance ) ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+}
+
+Custom_Proportional_Format_Currency_Callback::instance();
+
+function custom_proportional_and_format_currency( $field_value = null, $divisor = 1, $multiplier = 1 ) {
+	try {
+		$result = Custom_Proportional_Format_Currency_Callback::instance()->calculated_field( $field_value, $divisor, $multiplier );
+	} catch( Exception $e ) {
+		return $e->getMessage();
+	}
+	return $result;
+}
